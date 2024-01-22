@@ -126,7 +126,9 @@ function OrgLookupComponent() {
     return (
         <div>
             <h1 id="tabelLabel">Oppslag i Brønnøysundregistret</h1>
-            <p>Last opp CSV-fil som inneholder en semikolon-separert liste med organisasjonsnummer og navn. Vi vil deretter utføre oppslag i Brønnøysundregistret og tilgjengeliggjøre en ny CSV-fil med utfyllende organisasjonsinformasjon.</p>
+            <p>Last opp en CSV-fil med en semikolon-separert liste av organisasjonsnummer og navn, med en øvre grense på 10 000 organisasjoner.
+               Etter opplasting kan oppslag i Brønnøysundregistret utføres, og resultatene vil bli gjort tilgjengelige i en ny CSV-fil med utfyllende organisasjonsinformasjon.
+            </p>
 
             {isProcessing && <p>Processing...</p>}
 
