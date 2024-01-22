@@ -3,6 +3,9 @@ using OrganizationLookup.Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IOrganizationLookupService, OrganizationLookupService>();
 builder.Services.AddScoped<IBrregApiClient, BrregApiClient>();
@@ -26,7 +29,6 @@ var app = builder.Build();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
