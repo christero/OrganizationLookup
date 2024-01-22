@@ -1,4 +1,4 @@
-interface IOrganization {
+interface Organization {
     orgNumber: string;
     name: string
     brregName: string | null;
@@ -9,4 +9,4 @@ interface IOrganization {
     isDeleted: boolean | null;
 }
 
-export type { IOrganization};
+export type { Organization};

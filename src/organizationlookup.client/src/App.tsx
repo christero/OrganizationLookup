@@ -1,13 +1,11 @@
 import { useState, ChangeEvent } from 'react';
 import * as Papa from 'papaparse';
 import './App.css';
-import { IOrganization } from './interfaces/OrganizationDetails';
-import { IOrgLookupRequest, IOrgLookup } from './interfaces/OrgLookupRequest';
+import { OrgLookupRequest, OrgLookupResult } from './interfaces/orgLookupInterfaces';
+import OrganizationLookupService from './services/OrganizationLookupService';
+import FileService from './services/fileService';
 
-interface LookupResult {
-    organizations: IOrganization[];
-    errors: string;
-}
+
 
 interface InputOrganizations {
     organizations: InputOrganization[];
@@ -21,7 +19,7 @@ interface InputOrganization {
 function App() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [inputLookupData, setInputLookupData] = useState<InputOrganizations>({ organizations: [] });
-    const [orgLookupResults, setOrgLookupResult] = useState<LookupResult | null>(null);
+    const [orgLookupResults, setOrgLookupResult] = useState<OrgLookupResult | null>(null);
 
     async function handleFileChanged(event: ChangeEvent<HTMLInputElement>) {
         try {
@@ -30,9 +28,10 @@ function App() {
                 setIsProcessing(true);
                 setOrgLookupResult(null);
 
-                const fileContent = await readCSVFile(selectedFile);
+                const fileContent = await FileService.readCSVFile(selectedFile);
 
-                const newInputData = parseCSVData(fileContent);
+                const newInputData = await parseCSVData(fileContent);
+
                 setInputLookupData(newInputData);
             }
         } catch (error) {
@@ -42,56 +41,45 @@ function App() {
         }
     }
 
-    const readCSVFile = (file: File): Promise<string> => {
-        return new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                if (event.target) {
-                    resolve(event.target.result as string);
-                }
-            };
-            reader.readAsText(file);
+    async function parseCSVData(fileContent: string): Promise<InputOrganizations> {
+        return new Promise<InputOrganizations>((resolve) => {
+            Papa.parse<InputOrganization>(fileContent, {
+                delimiter: ';',
+                header: true,
+                skipEmptyLines: true,
+                transformHeader: (header) => header.replace(/,+$/, ''),
+                transform: (value: string, header: string) => {
+                    if (header === 'Name') {
+                        return value.replace(/,+$/, '');
+                    }
+                    return value;
+                },
+                complete: (result) => {
+                    const newInputData: InputOrganizations = {
+                        organizations: result.data
+                    };
+                    resolve(newInputData);
+                },
+            });
         });
-    };
+    }
 
-    const parseCSVData = (fileContent: string): InputOrganizations => {
-        const parsedData = Papa.parse<InputOrganization>(fileContent, {
-            delimiter: ';',
-            header: true,
-            skipEmptyLines: true,
-            transformHeader: (header) => header.replace(/,+$/, ''),
-            transform: (value: string, header: string) => {
-                if (header === 'Name') {
-                    return value.replace(/,+$/, '');
-                }
-
-                return value;
-            },
-        });
-
-        const newInputData: InputOrganizations = {
-            organizations: parsedData.data
-        };
-
-        return newInputData;
-    };
-
-    const handleLookupClick = async () => {
+    async function handleLookupClick() {
         setIsProcessing(true);
 
-        const orgLookupRequest: IOrgLookupRequest = {
+        const orgLookupRequest: OrgLookupRequest = {
             organizations: inputLookupData.organizations.map(org => ({ orgNumber: org.OrgNo })),
         };
 
         try {
-            const orgLookupResult = await sendPostRequest(orgLookupRequest);
+            const orgLookupResult = await OrganizationLookupService.performLookup(orgLookupRequest);
             if (orgLookupResult) {
                 const organizationsDetails = orgLookupResult.organizations.map(org => ({
                     ...org,
                     name: inputLookupData.organizations.find(inputOrg => inputOrg.OrgNo === org.orgNumber)?.Name || '',
                 }));
 
-                const result: LookupResult = {
+                const result: OrgLookupResult = {
                     organizations: organizationsDetails,
                     errors: orgLookupResult.errors
                 };
@@ -105,50 +93,9 @@ function App() {
         finally {
             setIsProcessing(false);
         }
-    };
+    }
 
-
-    const sendPostRequest = async (orgLookupRequest: IOrgLookupRequest) => {
-        try {
-            ////////////////////////////////////temp
-            const hardcodedOrgRequest: IOrgLookup = {
-                orgNumber: '811583332', // Legg til ønsket organisasjonsnummer her
-            };
-
-            const hardcodedOrgRequest3: IOrgLookup = {
-                orgNumber: '9803655', // Legg til ønsket organisasjonsnummer her
-            };
-
-
-            const orglookuprequest2: IOrgLookupRequest = {
-                organizations: [hardcodedOrgRequest, hardcodedOrgRequest3] //, hardcodedOrgRequest3, hardcodedOrgRequest4],
-            };
-
-            //     orgLookupRequest = orglookuprequest2;
-            ///////////////////////////////////
-            console.log('bodydata orgLookupRequest:', orgLookupRequest);
-            const response = await fetch('https://localhost:7259/api/Organizations/lookup', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(orgLookupRequest),
-            });
-
-            if (response.ok) {
-                //const responseData: LookupResult[] = await response.json();
-                const responseData: LookupResult = await response.json();
-                console.log('Response data:', responseData);
-                return responseData;
-            } else {
-                console.error('HTTP error:', response.status, response.statusText);
-            }
-        } catch (error) {
-            console.error('An error occurred during the HTTP request:', error);
-        }
-    };
-
-    function handleDownloadCSVFile(): void {
+    function handleDownloadCSVFileClick(): void {
         if (!orgLookupResults || orgLookupResults.organizations.length === 0) {
             return;
         }
@@ -168,29 +115,15 @@ function App() {
 
         const csvContent = Papa.unparse({ fields: csvHeader, data: csvData }, { delimiter: ';' });
 
-        downloadFile('resultat.csv', csvContent, 'text/csv');
+        FileService.downloadFile('resultat.csv', csvContent, 'text/csv');
     }
 
-    function handleDownloadErrorFile(): void {
+    function handleDownloadErrorFileClick(): void {
         if (!orgLookupResults || !orgLookupResults.errors || orgLookupResults.errors === '') {
             return;
         }
 
-        downloadFile('feillogg.txt', orgLookupResults.errors, 'text/plain');
-    }
-
-    function downloadFile(fileName: string, content: string, fileType: string) {
-        const blob = new Blob([content], { type: fileType });
-        const url = URL.createObjectURL(blob);
-
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', fileName);
-        document.body.appendChild(link);
-
-        link.click();
-
-        document.body.removeChild(link);
+        FileService.downloadFile('feillogg.txt', orgLookupResults.errors, 'text/plain');
     }
 
     return (
@@ -208,10 +141,10 @@ function App() {
                 <div>
                     <h2>Resultater</h2>
                     <div>
-                        <button onClick={handleDownloadCSVFile}>Last ned ny CSV-fil</button>
+                        <button onClick={handleDownloadCSVFileClick}>Last ned ny CSV-fil</button>
 
                         {orgLookupResults.errors && orgLookupResults.errors !== '' && (
-                            <button onClick={handleDownloadErrorFile}>Last ned feil-logg</button>
+                            <button onClick={handleDownloadErrorFileClick}>Last ned feil-logg</button>
                         )}
                     </div>
                 </div>
