@@ -26,7 +26,7 @@ namespace OrganizationLookup.Server.ApiClients
                 var content = await response.Content.ReadAsStringAsync();
 
                 var organizationDetails = JsonConvert.DeserializeObject<BrregOrganizationDetailsDTO>(content);
-                return ApiResult<BrregOrganizationDetailsDTO>.Success(organizationDetails); //TODO feilhåndtering når DeserializeObject feiler.
+                return ApiResult<BrregOrganizationDetailsDTO>.Success(organizationDetails!);
             }
 
             return ApiResult<BrregOrganizationDetailsDTO>.Failure(response.StatusCode);
